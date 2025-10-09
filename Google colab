@@ -1,0 +1,54 @@
+import random
+
+print("=== ALGORITMO GENÉTICO INTERACTIVO para encontrar el máximo de una función ===\n")
+
+funcion_texto = input("Ingrese la función a optimizar (use 'x' como variable, ej: -x**2 + 10*x + 5): ")
+rango_min = int(input("Ingrese el límite inferior del rango (ej: 0): "))
+rango_max = int(input("Ingrese el límite superior del rango (ej: 20): "))
+generaciones = int(input("Número de generaciones (ej: 5): "))
+
+# Convertimos la función en algo ejecutable
+def f(x):
+    return eval(funcion_texto)
+
+# --- Parámetros ---
+tamaño_poblacion = 4
+prob_mutacion = 0.3
+
+# --- Población inicial ---
+poblacion = [random.randint(rango_min, rango_max) for _ in range(tamaño_poblacion)]
+print("\nPoblación inicial:", poblacion)
+
+# --- Proceso evolutivo ---
+for gen in range(generaciones):
+    # Calcular fitness
+    aptitudes = [f(x) for x in poblacion]
+
+    # Selección de los 2 mejores
+    seleccionados = sorted(zip(poblacion, aptitudes), key=lambda x: x[1], reverse=True)[:2]
+    padre1, padre2 = seleccionados[0][0], seleccionados[1][0]
+
+    # Cruce
+    hijo1 = (padre1 + padre2) // 2
+    hijo2 = hijo1 + random.choice([-1, 1])
+
+    # Mutación
+    if random.random() < prob_mutacion:
+        hijo1 += random.choice([-1, 1])
+
+    # Mantener dentro del rango
+    hijo1 = max(min(hijo1, rango_max), rango_min)
+    hijo2 = max(min(hijo2, rango_max), rango_min)
+
+    # Nueva población
+    poblacion = [padre1, padre2, hijo1, hijo2]
+
+    print(f"\nGeneración {gen+1}:")
+    print("Población:", poblacion)
+    print("Aptitudes:", [f(x) for x in poblacion])
+    print("Mejor valor actual:", max([f(x) for x in poblacion]))
+
+# --- Resultado final ---
+mejor_x = max(poblacion, key=f)
+print("\n✅ Mejor solución encontrada:")
+print(f"x = {mejor_x}, f(x) = {f(mejor_x)}")
