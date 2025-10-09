@@ -1,7 +1,6 @@
 % Hechos: comida(Nombre, Tipo, Categoria, Calorias)
 % Tipo: principal / ligera / postre
 % Categoria: carne / vegetal / mar / dulce
-
 comida(pollo_asado, principal, carne, 400).
 comida(ensalada_mixta, ligera, vegetal, 150).
 comida(pescado_frito, principal, mar, 350).
