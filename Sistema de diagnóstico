@@ -1,0 +1,42 @@
+% Hechos: sintomas(Paciente, Sintoma).
+sintomas(juan, fiebre).
+sintomas(juan, tos).
+sintomas(juan, cansancio).
+
+sintomas(maria, dolor_cabeza).
+sintomas(maria, fiebre).
+
+sintomas(pedro, congestion_nasal).
+sintomas(pedro, estornudos).
+
+sintomas(ana, tos).
+sintomas(ana, fiebre).
+sintomas(ana, dificultad_respirar).
+
+% Reglas: diagnóstico según síntomas
+diagnostico(Paciente, gripe) :-
+    sintomas(Paciente, fiebre),
+    sintomas(Paciente, tos),
+    sintomas(Paciente, cansancio),
+    format('~w puede tener gripe.~n', [Paciente]).
+
+diagnostico(Paciente, covid) :-
+    sintomas(Paciente, fiebre),
+    sintomas(Paciente, tos),
+    sintomas(Paciente, dificultad_respirar),
+    format('~w puede tener COVID-19.~n', [Paciente]).
+
+diagnostico(Paciente, resfriado) :-
+    sintomas(Paciente, estornudos),
+    sintomas(Paciente, congestion_nasal),
+    format('~w puede tener un resfriado común.~n', [Paciente]).
+
+diagnostico(Paciente, dengue) :-
+    sintomas(Paciente, fiebre),
+    sintomas(Paciente, dolor_cabeza),
+    format('~w puede tener dengue.~n', [Paciente]).
+
+% Regla general: listar posibles diagnósticos
+mostrar_diagnostico(Paciente) :-
+    (diagnostico(Paciente, _);
+    format('No se encontraron diagnósticos para ~w.~n', [Paciente])).
