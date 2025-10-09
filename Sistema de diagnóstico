@@ -2,7 +2,6 @@
 sintomas(juan, fiebre).
 sintomas(juan, tos).
 sintomas(juan, cansancio).
-
 sintomas(maria, dolor_cabeza).
 sintomas(maria, fiebre).
 
