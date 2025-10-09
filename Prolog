@@ -1,1 +1,58 @@
+% Hechos: comida(Nombre, Tipo, Categoria, Calorias)
+% Tipo: principal / ligera / postre
+% Categoria: carne / vegetal / mar / dulce
 
+comida(pollo_asado, principal, carne, 400).
+comida(ensalada_mixta, ligera, vegetal, 150).
+comida(pescado_frito, principal, mar, 350).
+comida(pasta_con_salsa, principal, vegetal, 420).
+comida(helado, postre, dulce, 250).
+comida(frutas, postre, vegetal, 120).
+comida(sopa_de_pollo, ligera, carne, 200).
+comida(arroz_con_mariscos, principal, mar, 500).
+
+% -------------------------------------------
+% Regla 1: Recomendación según preferencia
+% -------------------------------------------
+recomendar_por_categoria(Categoria) :-
+    comida(Comida, _, Categoria, _),
+    format('Recomendación: ~w (Categoría: ~w)~n', [Comida, Categoria]),
+    fail.
+recomendar_por_categoria(_).
+
+% -------------------------------------------
+% Regla 2: Recomendación según tipo de comida
+% -------------------------------------------
+recomendar_por_tipo(Tipo) :-
+    comida(Comida, Tipo, _, _),
+    format('Recomendación: ~w (Tipo: ~w)~n', [Comida, Tipo]),
+    fail.
+recomendar_por_tipo(_).
+
+% -------------------------------------------
+% Regla 3: Comidas bajas en calorías (<300)
+% -------------------------------------------
+comida_saludable(Comida) :-
+    comida(Comida, _, _, Calorias),
+    Calorias < 300,
+    format('Comida saludable: ~w (~w calorías)~n', [Comida, Calorias]),
+    fail.
+comida_saludable(_).
+
+% -------------------------------------------
+% Regla 4: Recomendación personalizada
+% (Por tipo y categoría)
+% -------------------------------------------
+recomendar(Tipo, Categoria) :-
+    comida(Comida, Tipo, Categoria, _),
+    format('Recomendación personalizada: ~w (~w, ~w)~n', [Comida, Tipo, Categoria]),
+    fail.
+recomendar(_, _).
+
+% -------------------------------------------
+% Ejemplos de consultas
+% -------------------------------------------
+% ?- recomendar_por_categoria(vegetal).
+% ?- recomendar_por_tipo(postre).
+% ?- comida_saludable(_).
+% ?- recomendar(principal, mar).
