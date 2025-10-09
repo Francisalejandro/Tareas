@@ -1,5 +1,4 @@
 import random
-
 print("=== ALGORITMO GENÉTICO INTERACTIVO para encontrar el máximo de una función ===\n")
 
 funcion_texto = input("Ingrese la función a optimizar (use 'x' como variable, ej: -x**2 + 10*x + 5): ")
