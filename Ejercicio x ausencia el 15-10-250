@@ -1,0 +1,20 @@
+% Base de hechos
+progenitor(david, carlos).
+progenitor(david, diana).
+progenitor(elena, carlos).
+progenitor(elena, diana).
+progenitor(carlos, felipe).
+progenitor(carlos, gema).
+progenitor(diana, humberto).
+
+% Regla: ancestro(X, Y) se cumple si X es padre/madre de Y o ancestro de alguno de sus progenitores
+ancestro(X, Y) :- progenitor(X, Y).
+ancestro(X, Y) :- progenitor(X, Z), ancestro(Z, Y).
+
+% Regla: es_ancestro_comun(AncComun, Persona1, Persona2)
+es_ancestro_comun(AncComun, Persona1, Persona2) :-
+    Persona1 \= Persona2,
+    ancestro(AncComun, Persona1),
+    ancestro(AncComun, Persona2),
+    AncComun \= Persona1,
+    AncComun \= Persona2.
