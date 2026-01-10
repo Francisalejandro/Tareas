@@ -1,0 +1,22 @@
+cisterna(con_agua).
+tanque1(poca_agua).
+tanque2(lleno).
+bomba(apagada).
+
+decision(apagar_bomba) :-
+    cisterna(poca_agua),
+    bomba(encendida).
+
+decision(apagar_bomba) :-
+    tanque1(lleno),
+    tanque2(lleno),
+    bomba(encendida).
+
+decision(encender_bomba) :-
+    (tanque1(poca_agua) ; tanque2(poca_agua)),
+    cisterna(con_agua),
+    bomba(apagada).
+
+decision(mantener_estado) :-
+    \+ decision(apagar_bomba),
+    \+ decision(encender_bomba).
