@@ -1,0 +1,100 @@
+import pandas as pd
+import numpy as np
+import random
+
+archivo = "collegiate_athlete_injury_dataset.csv"
+data = pd.read_csv(archivo)
+
+print("Dataset cargado:", data.shape)
+
+
+df = data[['Fatigue_Score', 'Performance_Score', 'Injury_Indicator']].dropna()
+
+# Discretización (3 niveles)
+df['fatiga'] = pd.qcut(df['Fatigue_Score'], 3, labels=[0, 1, 2])
+df['rendimiento'] = pd.qcut(df['Performance_Score'], 3, labels=[0, 1, 2])
+df['lesion'] = df['Injury_Indicator']
+
+df = df.astype(int)
+
+NUM_ESTADOS = 9 # 3 fatiga × 3 rendimiento
+NUM_ACCIONES = 4 # descanso, regenerativo, técnico, intenso
+
+Q = np.zeros((NUM_ESTADOS, NUM_ACCIONES))
+
+alpha = 0.1
+gamma = 0.9
+epsilon = 0.2
+episodios = 80
+
+def estado_id(f, r):
+return f * 3 + r
+
+
+def recompensa(fatiga, rendimiento, lesion, accion):
+r = 0
+
+if rendimiento == 2:
+r += 8
+elif rendimiento == 1:
+r += 3
+else:
+r -= 3
+
+if fatiga == 2:
+r -= 10
+elif fatiga == 1:
+r -= 4
+
+if lesion == 1:
+r -= 20
+
+# Penaliza alta intensidad con fatiga alta
+if fatiga == 2 and accion == 3:
+r -= 10
+
+return r
+
+
+for ep in range(episodios):
+df = df.sample(frac=1).reset_index(drop=True)
+
+for i in range(len(df) - 1):
+f, r, l = df.loc[i, ['fatiga', 'rendimiento', 'lesion']]
+estado = estado_id(f, r)
+
+# Política epsilon-greedy
+if random.random() < epsilon:
+accion = random.randint(0, NUM_ACCIONES - 1)
+else:
+accion = np.argmax(Q[estado])
+
+# Estado siguiente
+f2, r2, _ = df.loc[i + 1, ['fatiga', 'rendimiento', 'lesion']]
+estado_sig = estado_id(f2, r2)
+
+# Acción siguiente (SARSA)
+if random.random() < epsilon:
+accion_sig = random.randint(0, NUM_ACCIONES - 1)
+else:
+accion_sig = np.argmax(Q[estado_sig])
+
+rwd = recompensa(f, r, l, accion)
+
+# Actualización SARSA
+Q[estado, accion] += alpha * (
+rwd + gamma * Q[estado_sig, accion_sig] - Q[estado, accion]
+)
+
+print("Entrenamiento SARSA completado")
+
+
+
+acciones = ["Descanso", "Regenerativo", "Técnico", "Alta intensidad"]
+
+print("\nPOLÍTICA APRENDIDA (MODELO COMPARATIVO):")
+for f in range(3):
+for r in range(3):
+e = estado_id(f, r)
+a = np.argmax(Q[e])
+print(f"Fatiga {f}, Rendimiento {r} -> {acciones[a]}")
