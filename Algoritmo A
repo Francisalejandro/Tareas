@@ -1,0 +1,335 @@
+import pandas as pd
+import numpy as np
+import random
+import os
+print("="*60)
+print(" SISTEMA RL - LISTO PARA ENTRENAR CON TU DATASET")
+print("="*60)
+print("\n 1. CARGANDO TU DATASET...")
+NOMBRE_TU_DATASET = "tu_dataset.csv"
+archivos_posibles = [
+    NOMBRE_TU_DATASET,
+    "dataset.csv",
+    "datos.csv",
+    "athlete_data.csv",
+    "deportistas.csv"
+]
+dataset_encontrado = None
+for archivo in archivos_posibles:
+    if os.path.exists(archivo):
+        dataset_encontrado = archivo
+        print(f"Encontrado: {archivo}")
+        break
+
+if not dataset_encontrado:
+    print(f" No se encontró: {NOMBRE_TU_DATASET}")
+    print("\n INSTRUCCIONES:")
+    print(f"1. Asegúrate de que tu archivo CSV se llame: {NOMBRE_TU_DATASET}")
+    print("2. Ponlo en la misma carpeta que este programa")
+    print("3. Si se llama diferente, cambia la línea 14 del código")
+    exit()
+try:
+    datos = pd.read_csv(dataset_encontrado)
+    print(f" Dataset cargado: {len(datos)} filas, {len(datos.columns)} columnas")
+except Exception as e:
+    print(f"Error cargando el dataset: {e}")
+    exit()
+print("\n 2. TUS DATOS (primeras 5 filas):")
+print(datos.head())
+
+print("\n TUS COLUMNAS:")
+for i, col in enumerate (datos.columns, 1):
+    print(f"  {i:2d}. {col}")
+print("\n3. BUSCANDO COLUMNAS IMPORTANTES...")
+def buscar_columna(palabras_clave, columnas):
+    columnas_lower = [c.lower() for c in columnas]
+    for palabra in palabras_clave:
+        for i, col in enumerate(columnas_lower):
+            if palabra in col:
+                return datos.columns[i]
+    return None
+col_fatiga = buscar_columna(['fatiga', 'fatigue', 'carga', 'load', 'cansancio'], datos.columns)
+col_rendimiento = buscar_columna(['rendimiento', 'performance', 'score', 'puntuacion', 'resultado'], datos.columns)
+col_lesiones = buscar_columna(['lesion', 'injury', 'herida', 'dolor', 'pain'], datos.columns)
+
+print("\n COLUMNAS ENCONTRADAS:")
+print(f"  • Fatiga:     {col_fatiga if col_fatiga else 'NO ENCONTRADA'}")
+print(f"  • Rendimiento: {col_rendimiento if col_rendimiento else 'NO ENCONTRADA'}")
+print(f"  • Lesiones:   {col_lesiones if col_lesiones else 'NO ENCONTRADA'}")
+
+if not col_fatiga:
+    print("\n  No se encontró columna de fatiga")
+    print("Columnas numéricas disponibles:")
+    columnas_numericas = datos.select_dtypes(include=[np.number]).columns.tolist()
+    for i, col in enumerate(columnas_numericas, 1):
+        print(f"  {i}. {col}")
+    
+    try:
+        seleccion = int(input("Selecciona el número de la columna de FATIGA: "))
+        col_fatiga = columnas_numericas[seleccion-1]
+    except:
+        print("Usando la primera columna numérica")
+        col_fatiga = columnas_numericas[0] if columnas_numericas else datos.columns[0]
+
+if not col_rendimiento:
+    print("\n⚠️  No se encontró columna de rendimiento")
+    columnas_numericas = datos.select_dtypes(include=[np.number]).columns.tolist()
+    for i, col in enumerate(columnas_numericas, 1):
+        print(f"  {i}. {col}")
+    
+    try:
+        seleccion = int(input("Selecciona el número de la columna de RENDIMIENTO: "))
+        col_rendimiento = columnas_numericas[seleccion-1]
+    except:
+        print("Usando la segunda columna numérica")
+        col_rendimiento = columnas_numericas[1] if len(columnas_numericas) > 1 else datos.columns[1]
+print("\n  4. PREPARANDO TUS DATOS PARA RL...")
+datos_limpios = datos[[col_fatiga, col_rendimiento]].copy()
+if col_lesiones:
+    datos_limpios['lesion'] = datos[col_lesiones]
+else:
+    datos_limpios['lesion'] = 0
+datos_limpios = datos_limpios.dropna()
+print(f" Datos limpios: {len(datos_limpios)} registros")
+for col in datos_limpios.columns:
+    datos_limpios[col] = pd.to_numeric(datos_limpios[col], errors='coerce')
+
+datos_limpios = datos_limpios.dropna()
+print(f"  Datos numéricos: {len(datos_limpios)} registros")
+print(f"\n ESTADÍSTICAS DE TUS DATOS:")
+print(f"• Fatiga:     Mín={datos_limpios[col_fatiga].min():.1f}, "
+      f"Máx={datos_limpios[col_fatiga].max():.1f}, "
+      f"Prom={datos_limpios[col_fatiga].mean():.1f}")
+print(f"• Rendimiento: Mín={datos_limpios[col_rendimiento].min():.1f}, "
+      f"Máx={datos_limpios[col_rendimiento].max():.1f}, "
+      f"Prom={datos_limpios[col_rendimiento].mean():.1f}")
+print(f"• Lesiones:    {datos_limpios['lesion'].sum()} casos "
+      f"({datos_limpios['lesion'].mean()*100:.1f}%)")
+print("\n 5. CREANDO ESTADOS DISCRETOS...")
+def crear_categorias(serie):
+    # Usar percentiles para categorías balanceadas
+    bajo = serie.quantile(0.33)
+    alto = serie.quantile(0.66)
+    
+    categorias = []
+    for valor in serie:
+        if valor <= bajo:
+            categorias.append(0)  # Bajo
+        elif valor <= alto:
+            categorias.append(1)  # Medio
+        else:
+            categorias.append(2)  # Alto
+    return categorias
+datos_limpios['fatiga_cat'] = crear_categorias(datos_limpios[col_fatiga])
+datos_limpios['rendimiento_cat'] = crear_categorias(datos_limpios[col_rendimiento])
+
+print("\n DISTRIBUCIÓN DE ESTADOS:")
+print(f"FATIGA - Bajo: {(datos_limpios['fatiga_cat']==0).sum()}, "
+      f"Medio: {(datos_limpios['fatiga_cat']==1).sum()}, "
+      f"Alto: {(datos_limpios['fatiga_cat']==2).sum()}")
+
+print(f"RENDIMIENTO - Bajo: {(datos_limpios['rendimiento_cat']==0).sum()}, "
+      f"Medio: {(datos_limpios['rendimiento_cat']==1).sum()}, "
+      f"Alto: {(datos_limpios['rendimiento_cat']==2).sum()}")
+print("\n6. DEFINIR ACCIONES DE ENTRENAMIENTO...")
+acciones_deportivas = [
+    "Descanso completo (recuperación total)",
+    "Recuperación activa (30% intensidad)",
+    "Trabajo técnico (habilidades específicas)",
+    "Entrenamiento ligero (50% intensidad)",
+    "Entrenamiento moderado (70% intensidad)",
+    "Entrenamiento intenso (90% intensidad)",
+    "Simulación de competencia",
+    "Trabajo de fuerza/potencia"
+]
+
+print("\n ACCIONES DISPONIBLES:")
+for i, accion in enumerate(acciones_deportivas[:6], 1):
+    print(f"  {i}. {accion}")
+while True:
+    try:
+        num_acciones = int(input(f"\n¿Cuántas acciones quieres usar? (2-6, recomiendo 4): "))
+        if 2 <= num_acciones <= 6:
+            break
+    except:
+        pass
+    print("  Por favor, elige entre 2 y 6")
+
+nombres_acciones = acciones_deportivas[:num_acciones]
+
+print(f"\n ACCIONES SELECCIONADAS:")
+for i, accion in enumerate(nombres_acciones, 1):
+    print(f"  {i}. {accion}")
+print("\n 7. ENTRENANDO ALGORITMO CON TUS DATOS...")
+NUM_ESTADOS = 9  # 3 fatiga × 3 rendimiento
+NUM_ACCIONES = num_acciones
+Q = np.zeros((NUM_ESTADOS, NUM_ACCIONES))
+ALPHA = 0.15      # Tasa de aprendizaje
+GAMMA = 0.85      # Factor de descuento
+EPSILON = 0.25    # Exploración inicial
+EPISODIOS = 100   # Iteraciones de entrenamiento
+
+print(f"\n PARÁMETROS DE ENTRENAMIENTO:")
+print(f"• Alpha (aprendizaje): {ALPHA}")
+print(f"• Gamma (futuro): {GAMMA}")
+print(f"• Epsilon (exploración): {EPSILON}")
+print(f"• Episodios: {EPISODIOS}")
+print(f"• Estados posibles: {NUM_ESTADOS}")
+print(f"• Acciones posibles: {NUM_ACCIONES}")
+def estado_a_indice(fatiga, rendimiento):
+    return int(fatiga) * 3 + int(rendimiento)
+def calcular_recompensa(fatiga, rendimiento, lesion, accion):
+    puntos = 0
+    BASE: Buen rendimiento es positivo
+    if rendimiento == 2:  # Alto
+        puntos += 15
+    elif rendimiento == 1:  # Medio
+        puntos += 8
+    else:  # Bajo
+        puntos -= 5
+    if fatiga == 2:  # Alta
+        puntos -= 18
+    elif fatiga == 1:  # Media
+        puntos -= 4
+   
+    if lesion == 1:
+        puntos -= 30
+        if fatiga == 2:  # Fatiga alta
+        if accion == 0:  # Descanso = bueno
+            puntos += 20
+        elif accion >= 4:  # Alta intensidad = muy malo
+            puntos -= 25
+    
+    elif fatiga == 0 and rendimiento == 2:  # Ideal para entrenar fuerte
+        if accion >= 4:  # Alta intensidad = bueno
+            puntos += 15
+    
+    elif fatiga == 0 and rendimiento == 0:  # Bajo rendimiento pero descansado
+        if accion == 2:  # Trabajo técnico = bueno
+            puntos += 12
+    print("\n⏳ Entrenando... (esto puede tomar unos segundos)")
+recompensas_totales = []
+
+for episodio in range(EPISODIOS):    datos_mezclados = datos_limpios.sample(frac=1).reset_index(drop=True)
+    recompensa_episodio = 0
+    
+    for i in range(len(datos_mezclados) - 1):
+        fila_actual = datos_mezclados.iloc[i]
+        fila_siguiente = datos_mezclados.iloc[i + 1]
+        
+        # Obtener estados actuales
+        fatiga = fila_actual['fatiga_cat']
+        rendimiento = fila_actual['rendimiento_cat']
+        lesion = fila_actual['lesion']
+        
+        estado = estado_a_indice(fatiga, rendimiento)
+        
+        # Estrategia epsilon-greedy
+        if random.random() < EPSILON:
+            accion = random.randint(0, NUM_ACCIONES - 1)  # Explorar
+        else:
+            accion = np.argmax(Q[estado])  # Explotar
+                recompensa = calcular_recompensa(fatiga, rendimiento, lesion, accion)
+        recompensa_episodio += recompensa
+        
+        fatiga_sig = fila_siguiente['fatiga_cat']
+        rendimiento_sig = fila_siguiente['rendimiento_cat']
+        estado_siguiente = estado_a_indice(fatiga_sig, rendimiento_sig)
+        mejor_futuro = np.max(Q[estado_siguiente])
+        Q[estado, accion] = Q[estado, accion] + ALPHA * (
+            recompensa + GAMMA * mejor_futuro - Q[estado, accion]
+        )
+    
+    # Reducir epsilon gradualmente (menos exploración con el tiempo)
+    EPSILON = max(0.05, EPSILON * 0.98)
+    
+    recompensas_totales.append(recompensa_episodio)
+    
+    # Mostrar progreso
+    if (episodio + 1) % 20 == 0:
+        print(f"  Episodio {episodio + 1}/{EPISODIOS} - "
+              f"Recompensa: {recompensa_episodio:.0f}")
+
+print(" ¡Entrenamiento completado!")
+print("\n" + "="*60)
+print("📊 RESULTADOS DEL ENTRENAMIENTO CON TUS DATOS")
+print("="*60)
+
+# Nombres descriptivos
+nombres_fatiga = ["BAJA", "MEDIA", "ALTA"]
+nombres_rendimiento = ["BAJO", "MEDIO", "ALTO"]
+
+# Analizar política aprendida
+print("\n POLÍTICA ÓPTIMA APRENDIDA:")
+
+politica_optima = []
+for f in range(3):
+    for r in range(3):
+        estado = estado_a_indice(f, r)
+        mejor_accion = np.argmax(Q[estado])
+        valor_q = Q[estado, mejor_accion]
+        
+        # Acortar nombre de acción si es muy largo
+        accion_corta = nombres_acciones[mejor_accion]
+        if len(accion_corta) > 50:
+            accion_corta = accion_corta[:47] + "..."
+        
+        print(f"\n ATLETA: Fatiga {nombres_fatiga[f]}, "
+              f"Rendimiento {nombres_rendimiento[r]}")
+        print(f"    {accion_corta}")
+        print(f"    Confianza: {valor_q:.2f}")
+        
+        politica_optima.append({
+            'fatiga': nombres_fatiga[f],
+            'rendimiento': nombres_rendimiento[r],
+            'accion': nombres_acciones[mejor_accion],
+            'confianza': round(valor_q, 2)
+        })
+
+# Estadísticas finales
+print("\n ESTADÍSTICAS FINALES:")
+print(f"• Recompensa promedio: {np.mean(recompensas_totales):.0f}")
+print(f"• Recompensa máxima: {np.max(recompensas_totales):.0f}")
+print(f"• Recompensa mínima: {np.min(recompensas_totales):.0f}")
+print(f"• Confianza promedio: {np.mean([p['confianza'] for p in politica_optima]):.2f}")
+
+# Distribución de acciones recomendadas
+print("\n DISTRIBUCIÓN DE RECOMENDACIONES:")
+acciones_recomendadas = [p['accion'] for p in politica_optima]
+conteo_acciones = {}
+for accion in set(acciones_recomendadas):
+    conteo = acciones_recomendadas.count(accion)
+    nombre_corto = accion[:30] + ("..." if len(accion) > 30 else "")
+    print(f"  • {nombre_corto}: {conteo} estados")
+
+print("\n10. GUARDANDO RESULTADOS...")
+
+nombre_base = dataset_encontrado.replace('.csv', '').replace('.CSV', '')
+np.save(f'modelo_entrenado_{nombre_base}.npy', Q)
+print(f"  Modelo entrenado: 'modelo_entrenado_{nombre_base}.npy'")
+
+politica_df = pd.DataFrame(politica_optima)
+politica_df.to_excel(f'politica_{nombre_base}.xlsx', index=False)
+print(f" Política óptima: 'politica_{nombre_base}.xlsx'")
+estadisticas = {
+    'dataset': dataset_encontrado,
+    'registros': len(datos_limpios),
+    'columnas_usadas': f"{col_fatiga}, {col_rendimiento}",
+    'episodios': EPISODIOS,
+    'recompensa_promedio': np.mean(recompensas_totales),
+    'confianza_promedio': np.mean([p['confianza'] for p in politica_optima]),
+    'acciones_definidas': num_acciones,
+    'fecha_entrenamiento': pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')
+}
+
+estadisticas_df = pd.DataFrame([estadisticas])
+estadisticas_df.to_csv(f'estadisticas_{nombre_base}.csv', index=False)
+print(f"  Estadísticas: 'estadisticas_{nombre_base}.csv'")
+
+# 4. Crear informe automático
+print("\n 11. GENERANDO INFORME PARA TU TRABAJO...")
+
+informe = f"""
+{'='*60}
+INFORME DE ENTRENAMIENTO - SISTEMA RL PARA GESTIÓN DEPORTIVA
+{'='*60}
