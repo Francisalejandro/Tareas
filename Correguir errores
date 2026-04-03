@@ -1,0 +1,172 @@
+import { Component, Inject, PLATFORM_ID, OnInit, OnDestroy } from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
+import { UbicacionesQuery } from '../state/ubicaciones.query';
+import { Ubicacion } from '../state/ubicacion.model';
+import { Subject, takeUntil } from 'rxjs';
+import { GeocalizacionService } from '../geocalizacion/geocalizacion.service';
+import { TspService, Punto } from '../TspService/tsp.service';
+
+@Component({
+  selector: 'app-map',
+  templateUrl: './map.component.html',
+  styleUrls: ['./map.component.css']
+})
+export class MapComponent implements OnInit, OnDestroy {
+  private map: any;
+  private markerGroup: any;
+  private destroy$ = new Subject<void>();
+  private userLocation: Punto | null = null;
+  private routingControl: any;
+  private L: any;
+
+  ubicacionesActuales: Ubicacion[] = [];
+  seleccionados: Ubicacion[] = [];
+
+  constructor(
+    @Inject(PLATFORM_ID) private platformId: Object,
+    private ubicacionesQuery: UbicacionesQuery,
+    private geoService: GeocalizacionService,
+    private tspService: TspService
+  ) {}
+
+  async ngOnInit() {
+    if (isPlatformBrowser(this.platformId)) {
+      const leaflet = await import('leaflet');
+  // import('leaflet-routing-machine');
+
+      this.L = leaflet;
+
+      this.initMap();
+
+      this.geoService.obtenerUbicacion().subscribe(pos => {
+        if (!this.map) return;
+
+        this.userLocation = { lat: pos.lat, lng: pos.lng };
+
+        this.map.setView([pos.lat, pos.lng], 10);
+
+        const iconoUsuario = this.getIcono('usuario');
+
+        this.L.marker([pos.lat, pos.lng], { icon: iconoUsuario })
+          .addTo(this.map)
+          .bindPopup('Estas aqui')
+          .openPopup();
+      });
+
+      this.ubicacionesQuery.ubicacionesFiltradas$
+        .pipe(takeUntil(this.destroy$))
+        .subscribe(ubicaciones => {
+          this.ubicacionesActuales = ubicaciones;
+          this.actualizarMarcadores(ubicaciones);
+        });
+    }
+  }
+
+  toggleSeleccion(ubicacion: Ubicacion) {
+    const existe = this.seleccionados.find(u => u.nombre === ubicacion.nombre);
+
+    if (existe) {
+      this.seleccionados = this.seleccionados.filter(u => u !== ubicacion);
+    } else {
+      this.seleccionados.push(ubicacion);
+    }
+  }
+
+  calcularRutaConAlgoritmo() {
+    if (!this.map || !this.userLocation || this.seleccionados.length === 0) return;
+
+    const puntosDestino: Punto[] = this.seleccionados.map(u => ({
+      lat: u.lat,
+      lng: u.lng
+    }));
+
+    const rutaOptima = this.tspService.resolverRuta(
+      this.userLocation,
+      puntosDestino
+    );
+
+    const waypoints = [
+      this.L.latLng(this.userLocation.lat, this.userLocation.lng),
+      ...rutaOptima.map(p => this.L.latLng(p.lat, p.lng))
+    ];
+
+    if (this.routingControl) {
+      this.map.removeControl(this.routingControl);
+    }
+
+    this.routingControl = this.L.Routing.control({
+      waypoints: waypoints,
+      routeWhileDragging: false
+    }).addTo(this.map);
+  }
+
+  centrarEn(ubicacion: Ubicacion) {
+    if (this.map) {
+      this.map.flyTo([ubicacion.lat, ubicacion.lng], 15);
+    }
+  }
+
+  private initMap() {
+    this.map = this.L.map('map').setView([20.02183, -75.829486], 8);
+
+    this.L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(this.map);
+
+    this.markerGroup = this.L.layerGroup().addTo(this.map);
+  }
+
+  private normalizarCategoria(categoria?: string): string {
+    if (!categoria) return '';
+    return categoria
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s/g, '');
+  }
+
+  private getIcono(categoria?: string) {
+    const iconos: any = {
+      hospital: 'assets/hospital.png',
+      museo: 'assets/museo.png',
+      parque: 'assets/parque.png',
+      tienda: 'assets/tienda.png',
+      agenciadeviajes: 'assets/agenciadeviajes.png',
+      casadecambio: 'assets/casadecambio.png',
+      hotel: 'assets/hotel.png',
+      usuario: 'assets/usuario.gif'
+    };
+
+    const clave = this.normalizarCategoria(categoria);
+    const iconUrl = iconos[clave] || 'assets/default.png';
+
+    return this.L.icon({
+      iconUrl,
+      iconSize: [32, 32],
+      iconAnchor: [16, 32]
+    });
+  }
+
+  private actualizarMarcadores(ubicaciones: Ubicacion[]) {
+    if (!this.markerGroup || !this.map) return;
+
+    this.markerGroup.clearLayers();
+
+    ubicaciones.forEach(u => {
+      const icono = this.getIcono(u.categoria);
+
+      const marker = this.L.marker([u.lat, u.lng], { icon: icono })
+        .bindPopup(`<b>${u.nombre}</b><br>${u.descripcion}`);
+
+      marker.on('click', () => this.toggleSeleccion(u));
+
+      marker.addTo(this.markerGroup);
+    });
+  }
+
+  ngOnDestroy() {
+    this.destroy$.next();
+    this.destroy$.complete();
+    if (this.map) this.map.remove();
+  }
+}
